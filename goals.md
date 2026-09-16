@@ -1,0 +1,3 @@
+- [ ] Изучить Docker
+- [ ] Изучить CI/CD (GitHub Actions)
+- [ ] Изучить Linux (Bash)
