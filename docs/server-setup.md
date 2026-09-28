@@ -106,6 +106,30 @@ sudo ufw logging medium
 
 Проверка лога: с хоста `curl -m 3 http://192.168.56.101:8080` (закрытый порт), на сервере `sudo grep 'UFW BLOCK' /var/log/ufw.log | tail -5` — поля `SRC` (адрес хоста), `DST=192.168.56.101`, `PROTO=TCP`, `DPT=8080`.
 
+## 6.1 Локальное доменное имя и hostname (задание 4)
+
+На хостовой системе в файл hosts добавляется запись (macOS/Linux — `/etc/hosts`, Windows — `C:\Windows\System32\drivers\etc\hosts`):
+
+```text
+192.168.56.101 devops.local
+```
+
+Проверка с хоста (на Windows при необходимости `ipconfig /flushdns`):
+
+```bash
+ping -c 2 devops.local
+ssh -p 2222 devops@devops.local
+```
+
+На сервере задаётся FQDN:
+
+```bash
+sudo hostnamectl set-hostname devops-vm
+sudo sed -i 's/^127.0.1.1.*/127.0.1.1 devops-vm.devops.local devops-vm/' /etc/hosts
+hostname -f
+# ожидается: devops-vm.devops.local
+```
+
 ## 7. Снимки состояния
 
 Создавать при выключенной (`sudo poweroff`) или работающей машине через менеджер снимков VirtualBox:
@@ -116,4 +140,4 @@ sudo ufw logging medium
 | 02-keys-configured | После задания 1: пользователь `devops` в sudo, ключ ed25519, `ssh devops` без пароля |
 | 03-ssh-hardened | После задания 2 (шаг 2.6): hardening SSH проверен в отдельном терминале, проброс переведен на гостевой 2222. После задания 3 фаервол активен (доп. контрольная точка опционально) |
 
-Восстановление за 10 минут: откат на 01-clean-install → создать `devops` → ключ → `99-hardening.conf` → сокет/порт/проброс → UFW → `devops.local`/`hostnamectl` — все команды берутся из разделов 4–6 этого файла.
+Восстановление за 10 минут: откат на 01-clean-install → создать `devops` → ключ → `99-hardening.conf` (+fix 50-cloud-init.conf) → сокет/порт/проброс 22→2222 → UFW (allow до enable, затем limit) → hosts-запись `192.168.56.101 devops.local` + `hostnamectl set-hostname devops-vm` → проверка `bash scripts/audit.sh` (exit 0). Все команды — из разделов 4–6.1 этого файла.
