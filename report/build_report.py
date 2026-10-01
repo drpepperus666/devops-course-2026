@@ -122,8 +122,18 @@ def table(headers, rows, widths=None):
     t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
     if widths:
+        # фиксированная раскладка + явный tblGrid: иначе LibreOffice строит
+        # колонки равными (gridCol) игнорируя tcW ячеек (см. валидацию таблиц)
         t.autofit = False
         t.allow_autofit = False
+        tbl = t._tbl
+        tblPr = tbl.tblPr
+        layout = OxmlElement("w:tblLayout")
+        layout.set(qn("w:type"), "fixed")
+        tblPr.append(layout)
+        grid = tbl.find(qn("w:tblGrid"))
+        for gc, w in zip(grid.findall(qn("w:gridCol")), widths):
+            gc.set(qn("w:w"), str(int(round(w * 567))))
     else:
         t.autofit = True
     for j, hh in enumerate(headers):
