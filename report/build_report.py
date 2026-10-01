@@ -16,12 +16,13 @@ OUT = os.path.join(BASE, "report/PR5_SSH_UFW_DNS_Report.docx")
 
 doc = Document()
 
-# --- Page setup A4, GOST margins ---
+# --- Page setup A4, GOST margins (профиль: 30/15/20/20) ---
 sec = doc.sections[0]
 sec.page_width, sec.page_height = Cm(21.0), Cm(29.7)
-sec.left_margin, sec.right_margin = Cm(3.0), Cm(1.0)
+sec.left_margin, sec.right_margin = Cm(3.0), Cm(1.5)
 sec.top_margin, sec.bottom_margin = Cm(2.0), Cm(2.0)
 sec.header_distance, sec.footer_distance = Cm(1.0), Cm(1.25)
+sec.different_first_page_header_footer = True
 
 # --- Base styles ---
 style = doc.styles["Normal"]
@@ -102,7 +103,7 @@ def code_block(lines):
         par.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         r = par.add_run(ln)
         r.font.name = "Consolas"; r.font.size = Pt(10.5)
-        r.font.color.rgb = RGBColor(0x1a, 0x1a, 0x1a)
+        r.font.color.rgb = RGBColor(0, 0, 0)
         pPr = par._p.get_or_add_pPr()
         shd = OxmlElement("w:shd")
         shd.set(qn("w:val"), "clear"); shd.set(qn("w:fill"), "F2F2F2")
@@ -120,22 +121,32 @@ def table(headers, rows, widths=None):
     t = doc.add_table(rows=1 + len(rows), cols=len(headers))
     t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    t.autofit = True
+    if widths:
+        t.autofit = False
+        t.allow_autofit = False
+    else:
+        t.autofit = True
     for j, hh in enumerate(headers):
         c = t.cell(0, j)
+        if widths:
+            c.width = Cm(widths[j])
         c.text = ""
         par = c.paragraphs[0]
         par.alignment = WD_ALIGN_PARAGRAPH.CENTER
         par.paragraph_format.first_line_indent = Cm(0)
         r = par.add_run(hh); r.bold = True; r.font.size = Pt(12); r.font.name = "Times New Roman"
+        r.font.color.rgb = RGBColor(0, 0, 0)
     for i, row in enumerate(rows, start=1):
         for j, val in enumerate(row):
             c = t.cell(i, j)
+            if widths:
+                c.width = Cm(widths[j])
             c.text = ""
             par = c.paragraphs[0]
             par.paragraph_format.first_line_indent = Cm(0)
             par.paragraph_format.space_after = Pt(2)
             r = par.add_run(val); r.font.size = Pt(12); r.font.name = "Times New Roman"
+            r.font.color.rgb = RGBColor(0, 0, 0)
     # caption spacing
     doc.add_paragraph().paragraph_format.space_after = Pt(6)
     return t
@@ -152,19 +163,123 @@ def fig(path, caption):
     cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
     cap.paragraph_format.first_line_indent = Cm(0)
     cap.paragraph_format.space_after = Pt(12)
-    r = cap.add_run(f"Рисунок {fig_no[0]} – {caption}")
+    r = cap.add_run(f"Рисунок {fig_no[0]} — {caption}")
     r.font.size = Pt(12); r.italic = False
+    r.font.color.rgb = RGBColor(0, 0, 0)
     return fig_no[0]
 
 def page_break():
     doc.add_page_break()
 
-# ================= PLACEHOLDER TITLE =================
-box = p("МЕСТО ДЛЯ ТИТУЛЬНОГО ЛИСТА", bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, indent=False, size=16)
-p("Титульный лист вставляется сюда перед печатью / сдачей. Данный лист-заглушка при оформлении заменяется титульным листом вуза (ИПТИП, кафедра Индустриального программирования, дисциплина «Инструменты девопс», практическая работа № 5, студент Ляпунов Д. Д., группа ЭФБО-04-24, преподаватель Гиматдинов Д. М., 2026/2027). Нумерация страниц начинается со следующего листа.",
-  italic=False, align=WD_ALIGN_PARAGRAPH.JUSTIFY, indent=False, size=12)
-p("Служебная информация: отчёт подготовлен по методическим указаниям DEV_5.md от 26.09.2026. Репозиторий: devops-course-2026 (scripts/audit.sh, docs/server-setup.md).",
-  indent=False, size=12)
+def _no_borders(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = OxmlElement(f"w:{edge}")
+        el.set(qn("w:val"), "nil"); el.set(qn("w:sz"), "0")
+        el.set(qn("w:space"), "0"); el.set(qn("w:color"), "auto")
+        borders.append(el)
+    tblPr.append(borders)
+
+def title_run(par, text, size=14, bold=False):
+    par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    par.paragraph_format.first_line_indent = Cm(0)
+    par.paragraph_format.space_before = Pt(0)
+    par.paragraph_format.space_after = Pt(0)
+    r = par.add_run(text)
+    r.font.name = "Times New Roman"; r.font.size = Pt(size)
+    r.bold = bold; r.font.color.rgb = RGBColor(0, 0, 0)
+    return r
+
+# ================= ТИТУЛЬНЫЙ ЛИСТ (эталон: pr2.docx / ПЗ3-финал с гербом, адаптация под ПР № 5) =================
+GERB = os.path.join(BASE, "report/title_gerb.jpg")
+gp = doc.add_paragraph()
+gp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+gp.paragraph_format.first_line_indent = Cm(0)
+gp.paragraph_format.space_before = Pt(0)
+gp.paragraph_format.space_after = Pt(6)
+gp.add_run().add_picture(GERB, width=Cm(2.75))
+
+t0 = doc.add_table(rows=2, cols=1)
+t0.alignment = WD_TABLE_ALIGNMENT.CENTER
+t0.autofit = True
+_no_borders(t0)
+c = t0.cell(0, 0); c.text = ""
+pp = c.paragraphs[0]
+title_run(pp, "МИНОБРНАУКИ РОССИИ", size=14)
+c = t0.cell(1, 0); c.text = ""
+for line in ["Федеральное государственное бюджетное образовательное учреждение",
+             "высшего образования",
+             "«МИРЭА – Российский технологический университет»",
+             "РТУ МИРЭА"]:
+    pp = c.add_paragraph() if c.paragraphs[0].text else c.paragraphs[0]
+    title_run(pp, line, size=14)
+
+for _ in range(2):
+    e = doc.add_paragraph(); e.paragraph_format.first_line_indent = Cm(0)
+    e.paragraph_format.space_before = Pt(0); e.paragraph_format.space_after = Pt(0)
+
+pn = doc.add_paragraph()
+pn.alignment = WD_ALIGN_PARAGRAPH.CENTER
+pn.paragraph_format.first_line_indent = Cm(0)
+pn.paragraph_format.space_before = Pt(0); pn.paragraph_format.space_after = Pt(0)
+pn.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+rn = pn.add_run("Практическое занятие № 5")
+rn.font.name = "Times New Roman"; rn.font.size = Pt(16); rn.bold = True
+rn.font.color.rgb = RGBColor(0, 0, 0)
+
+pd = doc.add_paragraph()
+pd.alignment = WD_ALIGN_PARAGRAPH.CENTER
+pd.paragraph_format.first_line_indent = Cm(0)
+pd.paragraph_format.space_before = Pt(0); pd.paragraph_format.space_after = Pt(0)
+pd.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+rd = pd.add_run("по дисциплине «Инструменты девопс»")
+rd.font.name = "Times New Roman"; rd.font.size = Pt(16)
+rd.font.color.rgb = RGBColor(0, 0, 0)
+
+e = doc.add_paragraph(); e.paragraph_format.first_line_indent = Cm(0)
+pt_ = doc.add_paragraph()
+pt_.paragraph_format.first_line_indent = Cm(0)
+pt_.paragraph_format.space_before = Pt(0); pt_.paragraph_format.space_after = Pt(0)
+pt_.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+rt = pt_.add_run("Тема работы: Удалённый сервер и безопасный доступ. SSH, sudo, UFW, DNS")
+rt.font.name = "Times New Roman"; rt.font.size = Pt(14); rt.bold = True
+rt.font.color.rgb = RGBColor(0, 0, 0)
+
+for _ in range(2):
+    e = doc.add_paragraph(); e.paragraph_format.first_line_indent = Cm(0)
+    e.paragraph_format.space_before = Pt(0); e.paragraph_format.space_after = Pt(0)
+
+t1 = doc.add_table(rows=4, cols=4)
+t1.alignment = WD_TABLE_ALIGNMENT.CENTER
+t1.autofit = False
+t1.allow_autofit = False
+_no_borders(t1)
+# 4 колонки в сумме 16.5 см (ширина текста при полях 30/15): колонки подписей
+# шире, чтобы «Выполнил:» и «Гиматдинов Д.М.» не рвались (см. рендер-контроль)
+for _j, _w in enumerate([2.6, 5.4, 3.0, 5.5]):
+    for _i in range(4):
+        t1.cell(_i, _j).width = Cm(_w)
+        t1.cell(_i, _j).text = ""
+title_run(t1.cell(0, 0).paragraphs[0], "Выполнил:", size=14)
+title_run(t1.cell(0, 1).paragraphs[0], "студент группы", size=14)
+title_run(t1.cell(0, 2).paragraphs[0], "(подпись)", size=12)
+title_run(t1.cell(0, 3).paragraphs[0], "Ляпунов Д.Д.", size=14)
+title_run(t1.cell(1, 1).paragraphs[0], "ЭФБО-04-24", size=14)
+title_run(t1.cell(2, 0).paragraphs[0], "Принял:", size=14)
+title_run(t1.cell(2, 1).paragraphs[0], "ст. преп.", size=14)
+title_run(t1.cell(2, 2).paragraphs[0], "(подпись)", size=12)
+title_run(t1.cell(2, 3).paragraphs[0], "Гиматдинов Д.М.", size=14)
+title_run(t1.cell(3, 1).paragraphs[0], "(должность)", size=12)
+title_run(t1.cell(3, 3).paragraphs[0], "(Фамилия И.О.)", size=12)
+
+for _ in range(3):
+    e = doc.add_paragraph(); e.paragraph_format.first_line_indent = Cm(0)
+    e.paragraph_format.space_before = Pt(0); e.paragraph_format.space_after = Pt(0)
+
+mc = doc.add_paragraph(); title_run(mc, "Москва", size=14)
+yc = doc.add_paragraph(); title_run(yc, "2026", size=14)
 page_break()
 
 # ================= ВВЕДЕНИЕ =================
@@ -178,7 +293,7 @@ p("Хостовая система: macOS на ARM (MacBook Air), VirtualBox 7.x
 h1("1 Подготовка к занятию: виртуальная машина")
 p("Подготовку я делал заранее, как и требуют указания: одна только установка с загрузкой образа на 2,5 ГБ занимает от получаса. Поставил VirtualBox 7.x, скачал Ubuntu Server 24.04 LTS именно в редакции Server — без графики. Это осознанное условие: на боевом сервере графики тоже нет, и привыкать работать через консоль и SSH нужно сразу.")
 h2("1.1 Параметры машины и сети")
-table_caption("Таблица 1 – Параметры виртуальной машины devops-vm")
+table_caption("Таблица 1 — Параметры виртуальной машины devops-vm")
 table(["Параметр", "Значение"],
     [["Имя", "devops-vm"],
      ["Тип гостевой ОС", "Linux / Ubuntu (64-bit)"],
@@ -186,7 +301,7 @@ table(["Параметр", "Значение"],
      ["Процессор", "2 ядра"],
      ["Диск", "25 ГБ, динамически расширяемый, Use an entire disk"],
      ["Адаптер 1", "NAT (доступ в Интернет, apt)"],
-     ["Адаптер 2", "Host-only (связка с хостом, будущий Nginx)"]])
+     ["Адаптер 2", "Host-only (связка с хостом, будущий Nginx)"]], widths=[5.5, 11.0])
 p("Оба адаптера я подключил до первого запуска. С сетью Host-only пришлось повозиться: её не было в списке, создал вручную через менеджер сетей VirtualBox (подсеть 192.168.56.0/24). Если в списке версий нет 64-битных вариантов — это выключенный VT-x/AMD-V или мешающий Hyper-V, но на моём Mac такой проблемы не возникло.")
 h2("1.2 Проброс портов и установка")
 p("Для адаптера NAT задал правило ssh: TCP, 127.0.0.1:2222 (хост) → порт 22 (гость). Адрес гостя оставил пустым, как в таблице 3 указаний. Позже, после переноса sshd на 2222, порт гостя поменял на 2222.")
@@ -343,7 +458,7 @@ for title, body in qs:
 # ================= 9 =================
 h1("9 Контроль перед сдачей (таблица 7)")
 p("Итоговую сверку по таблице 7 методических указаний свёл в таблицу 2: каждая строка подтверждается скриншотом или командой из текста выше.")
-table_caption("Таблица 2 – Контроль выполнения условий перед сдачей отчёта")
+table_caption("Таблица 2 — Контроль выполнения условий перед сдачей отчёта")
 table(["№", "Условие", "Подтверждение"],
     [["1", "Вход по ключу без пароля", "ssh devops — без запроса пароля (рисунок 3)"],
      ["2", "Вход root запрещён", "sshd -T | grep permitrootlogin → no (рисунок 5)"],
@@ -352,7 +467,7 @@ table(["№", "Условие", "Подтверждение"],
      ["5", "UFW активен, deny, LIMIT", "ufw status verbose (рисунок 9)"],
      ["6", "devops.local разрешается", "ssh -p 2222 devops@devops.local (рисунок 11)"],
      ["7", "Три снимка ВМ", "менеджер снимков (рисунок 2)"],
-     ["8", "Скрипт и документация в репозитории", "scripts/audit.sh, docs/server-setup.md (приложение А)"]])
+     ["8", "Скрипт и документация в репозитории", "scripts/audit.sh, docs/server-setup.md (приложение А)"]], widths=[1.5, 7.5, 7.5])
 p("Все восемь условий выполнены. Скрипт audit.sh на финальной конфигурации завершается с кодом 0, на намеренно нарушенной (MaxAuthTries 10) — с кодом 1, то есть пригоден для автоматизации.")
 
 # ================= Заключение =================
